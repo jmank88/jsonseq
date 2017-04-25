@@ -7,7 +7,7 @@ import (
 	"strings"
 )
 
-func ExampleWriter_WriteRecord() {
+func ExampleWriteRecord() {
 	WriteRecord(os.Stdout, []byte(`{"id":1}`))
 	WriteRecord(os.Stdout, []byte(`{"id":2}`))
 	WriteRecord(os.Stdout, []byte(`{"id":3}`))
@@ -19,7 +19,7 @@ func ExampleWriter_WriteRecord() {
 	//
 }
 
-func ExampleReader_ReadRecord() {
+func ExampleScanRecord() {
 	s := bufio.NewScanner(strings.NewReader(`{"id":1}
 12341234
 `))

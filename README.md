@@ -28,8 +28,8 @@ scanner.Split(ScanRecord)
 Scanned bytes must be validated with the `RecordValue` function.
 
 ```go
-for s.Scan() {
-	b, ok := RecordValue(s.Bytes())
+for scanner.Scan() {
+	jsonBytes, ok := RecordValue(scanner.Bytes())
 	if !ok {
 		// partial record
 	}

@@ -29,13 +29,13 @@ Scanned bytes must be validated with the `RecordValue` function.
 
 ```go
 for s.Scan() {
-		b, ok := RecordValue(s.Bytes())
-		if !ok {
-			// partial record
-		}
-		// valid record
+	b, ok := RecordValue(s.Bytes())
+	if !ok {
+		// partial record
 	}
+	// valid record
+}
 ```
 
-For more on partial records, see section 2.4: [Top-Level Values: numbers, true, false, and null](https://tools.ietf.org/html/rfc7464#section-2.4).
+For more on partial records, see [Section 2.4: Top-Level Values: numbers, true, false, and null](https://tools.ietf.org/html/rfc7464#section-2.4).
                                                                                              

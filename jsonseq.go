@@ -86,7 +86,7 @@ func trailingWhitespace(b []byte) ([]byte, bool) {
 
 // The ScanRecord function is a bufio.SplitFunc which splits JSON sequence
 // records.
-// Scanned bytes must be validated with the RecordValue() function.
+// Scanned bytes must be validated with the RecordValue function.
 func ScanRecord(data []byte, atEOF bool) (advance int, token []byte, err error) {
 	if atEOF && len(data) == 0 {
 		return 0, nil, nil

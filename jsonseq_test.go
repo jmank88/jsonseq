@@ -29,7 +29,7 @@ func ExampleScanRecord() {
 		if !ok {
 			fmt.Print("partial record: ")
 		}
-		fmt.Println(strings.TrimSpace(string(b)))
+		fmt.Println(string(b))
 	}
 	// Output:
 	// {"id":1}

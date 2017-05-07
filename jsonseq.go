@@ -24,8 +24,6 @@ func WriteRecord(w io.Writer, json []byte) error {
 	return err
 }
 
-type Record []byte
-
 // The RecordValue function returns a slice containing the value from a JSON
 // sequence record and true if it can be decoded or false if the record was
 // truncated or otherwise invalid. This is *NOT* a validation of the JSON value
@@ -70,7 +68,11 @@ func RecordValue(b []byte) ([]byte, bool) {
 		return trailingWhitespace(b)
 	}
 
-	// For all other values, truncation will cause decoding to fail.
+	// For all other values, truncation will cause decoding to fail, so drop
+	// delimiting whitespace, but don't invalidate if not present.
+	if isWhitespace(b[len(b)-1]) {
+		b = b[:len(b)-1]
+	}
 	return b, true
 }
 
@@ -84,29 +86,22 @@ func trailingWhitespace(b []byte) ([]byte, bool) {
 	return b, false
 }
 
-// The ScanRecord function is a bufio.SplitFunc which splits JSON sequence
-// records.
+// The ScanRecord function is a bufio.SplitFunc which splits JSON sequence records.
 // Scanned bytes must be validated with the RecordValue function.
 func ScanRecord(data []byte, atEOF bool) (advance int, token []byte, err error) {
 	if atEOF && len(data) == 0 {
 		return 0, nil, nil
 	}
-	const either = string(rs) + string(lf)
-	i := bytes.IndexAny(data, either)
-	if i < 0 {
+	// Find record start.
+	switch i := bytes.IndexByte(data, rs); {
+	case i < 0:
 		if atEOF {
 			// Partial record.
 			return len(data), data, nil
 		}
 		// Request more data.
 		return 0, nil, nil
-	}
-	if data[i] == lf {
-		// Partial record.
-		return i + 1, data[0:i], nil
-	}
-	// else == rs
-	if i != 0 {
+	case i > 0:
 		// Partial record.
 		return i, data[0 : i-1], nil
 	}
@@ -114,23 +109,19 @@ func ScanRecord(data []byte, atEOF bool) (advance int, token []byte, err error) 
 
 	// Drop consecutive leading rs's
 	for len(data) > 1 && data[1] == rs {
-		data = data[i:]
+		data = data[1:]
 	}
 
 	// Find end or next record.
-	i = bytes.IndexAny(data[1:], either) + 1
+	i := bytes.IndexByte(data[1:], rs)
 	if i < 0 {
 		if atEOF {
-			// Partial record.
 			return len(data), data, nil
 		}
 		// Request more data.
 		return 0, nil, nil
 	}
-	if data[i] == rs {
-		return i, data[:i], nil
-	}
-	return i + 1, data[:i+1], nil
+	return 1 + i, data[:1+i], nil
 }
 
 const (

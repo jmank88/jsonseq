@@ -36,7 +36,7 @@ func ExampleRecordWriter_Write() {
 }
 
 func ExampleDecoder_Decode() {
-	d := jsonseq.NewDecoder(strings.NewReader(`{"id":1} 12341234 `))
+	d := jsonseq.NewDecoder(strings.NewReader(`{"id":1} 12341234 true discarded junk`))
 	for {
 		var i interface{}
 		if err := d.Decode(&i); err != nil {
@@ -52,4 +52,5 @@ func ExampleDecoder_Decode() {
 	// map[id:1]
 	// invalid record: "1234"
 	// 1234
+	// true
 }

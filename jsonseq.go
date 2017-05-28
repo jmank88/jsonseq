@@ -3,7 +3,10 @@
 package jsonseq
 
 import (
+	"bufio"
 	"bytes"
+	"encoding/json"
+	"fmt"
 	"io"
 )
 
@@ -11,23 +14,92 @@ import (
 // See: https://tools.ietf.org/html/rfc7464#section-4
 const ContentType = `application/json-seq`
 
-// The WriteRecord function writes a JSON sequence record with beginning and end
-// marker bytes.
+const (
+	rs = 0x1E
+	lf = 0x0A
+	sp = 0x20
+	tb = 0x09
+	cr = 0x0D
+)
+
+// whitespaceSet holds whitespace characters defined in https://tools.ietf.org/html/rfc7159#section-2.
+var whitespaceSet = string([]byte{sp, tb, lf, cr})
+
+// WriteRecord writes a JSON text sequence record with beginning
+// (RS) and end (LF) marker bytes.
 func WriteRecord(w io.Writer, json []byte) error {
-	if _, err := w.Write([]byte{rs}); err != nil {
+	_, err := w.Write([]byte{rs})
+	if err != nil {
 		return err
 	}
-	if _, err := w.Write(json); err != nil {
+	_, err = w.Write(json)
+	if err != nil {
 		return err
 	}
-	_, err := w.Write([]byte{lf})
+	_, err = w.Write([]byte{lf})
 	return err
 }
 
-// The RecordValue function returns a slice containing the value from a JSON
-// sequence record and true if it can be decoded or false if the record was
-// truncated or otherwise invalid. This is *NOT* a validation of the JSON value
-// itself, which may still fail to decode.
+// A RecordWriter delimits the start of written records with a record separator.
+//
+// The standard library's json.Encoder calls Write just once for each value and
+// always with a trailing line feed, so it can be adapted very simply to emit a
+// JSON
+//
+// 	encoder := json.NewEncoder(&jsonseq.RecordWriter{writer})
+type RecordWriter struct {
+	io.Writer
+}
+
+// Write prefixes every written record with an ASCII record separator. The caller
+// is responsible for including a trailing line feed when necessary. Calls the
+// underlying Writer exactly once.
+func (w *RecordWriter) Write(record []byte) (int, error) {
+	_, err := w.Writer.Write([]byte{rs})
+	if err != nil {
+		return -1, err
+	}
+	n, err := w.Writer.Write(record)
+	return n + 1, err
+}
+
+// A Decoder reads and decodes JSON text sequence records from an input stream.
+type Decoder struct {
+	s *bufio.Scanner
+	// The function used to unmarshal valid records. Defaults to json.Unmarshal.
+	Unmarshal func(data []byte, v interface{}) error
+}
+
+// NewDecoder creates a Decoder.
+func NewDecoder(r io.Reader) *Decoder {
+	s := bufio.NewScanner(r)
+	s.Split(ScanRecord)
+	return &Decoder{s: s, Unmarshal: json.Unmarshal}
+}
+
+// Decode scans the next record, or returns an error. The Decoder remains valid
+// until io.EOF is returned.
+func (d *Decoder) Decode(v interface{}) error {
+	if !d.s.Scan() {
+		if err := d.s.Err(); err != nil {
+			return err
+		}
+		return io.EOF
+	}
+	b := d.s.Bytes()
+
+	b, ok := RecordValue(b)
+	if !ok {
+		return fmt.Errorf("invalid record: %q", string(b))
+	}
+
+	return d.Unmarshal(b, v)
+}
+
+// RecordValue returns a slice containing the value from a JSON sequence record
+// and true if it can be decoded or false if the record was truncated or is
+// otherwise invalid. This is *NOT* a validation of the JSON value itself, which
+// may still fail to decode.
 //
 // See section 2.4: Top-Level Values: numbers, true, false, and null.
 // https://tools.ietf.org/html/rfc7464#section-2.4
@@ -38,55 +110,65 @@ func RecordValue(b []byte) ([]byte, bool) {
 	if b[0] != rs {
 		return b, false
 	}
-	// Drop rs.
-	b = b[1:]
-	// Drop leading whitespace.
-	for isWhitespace(b[0]) {
-		b = b[1:]
-	}
+	// Drop rs and leading whitespace.
+	b = bytes.TrimLeft(b[1:], whitespaceSet)
 
 	// A number, true, false, or null value could be truncated if not
 	// followed by whitespace.
 	switch b[0] {
 	case 'n':
 		if bytes.HasPrefix(b, []byte("null")) {
-			return trailingWhitespace(b)
+			b, trimmed := trimTrailingWhitespace(b)
+			if trimmed && bytes.Equal(b, []byte("null")) {
+				return b, true
+			}
+			return b, false
 		}
 	case 't':
 		if bytes.HasPrefix(b, []byte("true")) {
-			return trailingWhitespace(b)
+			b, trimmed := trimTrailingWhitespace(b)
+			if trimmed && bytes.Equal(b, []byte("true")) {
+				return b, true
+			}
+			return b, false
 		}
 	case 'f':
 		if bytes.HasPrefix(b, []byte("false")) {
-			return trailingWhitespace(b)
+			b, trimmed := trimTrailingWhitespace(b)
+			if trimmed && bytes.Equal(b, []byte("false")) {
+				return b, true
+			}
+			return b, false
 		}
 	case '-':
 		if '0' <= b[1] && b[1] <= '9' {
-			return trailingWhitespace(b)
+			b, trimmed := trimTrailingWhitespace(b)
+			if trimmed && !bytes.ContainsAny(b, whitespaceSet) {
+				return b, true
+			}
+			return b, false
 		}
 	case '0', '1', '2', '3', '4', '5', '6', '7', '8', '9':
-		return trailingWhitespace(b)
+		b, trimmed := trimTrailingWhitespace(b)
+		if trimmed && !bytes.ContainsAny(b, whitespaceSet) {
+			return b, true
+		}
+		return b, false
 	}
 
 	// For all other values, truncation will cause decoding to fail, so drop
 	// delimiting whitespace, but don't invalidate if not present.
-	if isWhitespace(b[len(b)-1]) {
-		b = b[:len(b)-1]
-	}
+	b, _ = trimTrailingWhitespace(b)
 	return b, true
 }
 
-// The trailingWhitespace function inspects a record value for trailing
-// whitespace, returning the sliced value and true if found, otherwise the
-// original value and false.
-func trailingWhitespace(b []byte) ([]byte, bool) {
-	if isWhitespace(b[len(b)-1]) {
-		return b[:len(b)-1], true
-	}
-	return b, false
+// trimTrailingWhitespace trims trailing whitespace, returning the result and true if trimming took place.
+func trimTrailingWhitespace(b []byte) ([]byte, bool) {
+	t := bytes.TrimRight(b, whitespaceSet)
+	return t, len(t) != len(b)
 }
 
-// The ScanRecord function is a bufio.SplitFunc which splits JSON sequence records.
+// ScanRecord is a bufio.SplitFunc which splits JSON text sequence records.
 // Scanned bytes must be validated with the RecordValue function.
 func ScanRecord(data []byte, atEOF bool) (advance int, token []byte, err error) {
 	if atEOF && len(data) == 0 {
@@ -122,23 +204,4 @@ func ScanRecord(data []byte, atEOF bool) (advance int, token []byte, err error) 
 		return 0, nil, nil
 	}
 	return 1 + i, data[:1+i], nil
-}
-
-const (
-	rs = 0x1E
-	lf = 0x0A
-	sp = 0x20
-	tb = 0x09
-	cr = 0x0D
-)
-
-// The isWhitespace function returns true if b represents a whitespace character
-// as defined in https://tools.ietf.org/html/rfc7159#section-2, otherwise it
-// returns false.
-func isWhitespace(b byte) bool {
-	switch b {
-	case sp, tb, lf, cr:
-		return true
-	}
-	return false
 }

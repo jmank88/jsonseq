@@ -11,9 +11,9 @@ import (
 )
 
 func ExampleWriteRecord() {
-	jsonseq.WriteRecord(os.Stdout, []byte(`{"id":1}`))
-	jsonseq.WriteRecord(os.Stdout, []byte(`{"id":2}`))
-	jsonseq.WriteRecord(os.Stdout, []byte(`{"id":3}`))
+	_ = jsonseq.WriteRecord(os.Stdout, []byte(`{"id":1}`))
+	_ = jsonseq.WriteRecord(os.Stdout, []byte(`{"id":2}`))
+	_ = jsonseq.WriteRecord(os.Stdout, []byte(`{"id":3}`))
 
 	// Output:
 	// {"id":1}
@@ -22,7 +22,7 @@ func ExampleWriteRecord() {
 	//
 }
 
-func ExampleRecordWriter_Write() {
+func ExampleEncoder_Encode() {
 	encoder := json.NewEncoder(&jsonseq.RecordWriter{os.Stdout})
 	_ = encoder.Encode("Test")
 	_ = encoder.Encode(123.456)
@@ -48,6 +48,7 @@ func ExampleDecoder_Decode() {
 			fmt.Println(i)
 		}
 	}
+
 	// Output:
 	// map[id:1]
 	// invalid record: "1234"

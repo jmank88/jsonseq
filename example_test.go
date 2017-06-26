@@ -22,7 +22,7 @@ func ExampleWriteRecord() {
 	//
 }
 
-func ExampleEncoder_Encode() {
+func ExampleRecordWriter() {
 	encoder := json.NewEncoder(&jsonseq.RecordWriter{os.Stdout})
 	_ = encoder.Encode("Test")
 	_ = encoder.Encode(123.456)

@@ -50,7 +50,7 @@ func WriteRecord(w io.Writer, json []byte) error {
 //
 // The standard library's json.Encoder calls Write just once for each value and
 // always with a trailing line feed, so it can be adapted very simply to emit a
-// JSON
+// JSON text sequence.
 //
 // 	encoder := json.NewEncoder(&jsonseq.RecordWriter{writer})
 type RecordWriter struct {
@@ -100,8 +100,8 @@ func (d *Decoder) Decode(v interface{}) error {
 	return json.NewDecoder(bytes.NewReader(b)).Decode(v)
 }
 
-// RecordValue returns a slice containing the value from a JSON sequence record
-// and true if it can be decoded or false if the record was truncated or is
+// RecordValue returns a slice containing the value from a JSON text sequence
+// record and true if it can be decoded or false if the record was truncated or is
 // otherwise invalid. This is *NOT* a validation of any contained JSON, and some
 // records contain data after the first value, which is always invalid since it
 // was not preceded by a RS.

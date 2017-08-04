@@ -74,7 +74,7 @@ type Decoder struct {
 	s *bufio.Scanner
 }
 
-// NewDecoder creates a Decoder.
+// NewDecoder creates a Decoder which reads JSON objects from the supplied stream.
 func NewDecoder(r io.Reader) *Decoder {
 	s := bufio.NewScanner(r)
 	s.Split(ScanRecord)
@@ -101,10 +101,12 @@ func (d *Decoder) Decode(v interface{}) error {
 }
 
 // RecordValue returns a slice containing the value from a JSON text sequence
-// record and true if it can be decoded or false if the record was truncated or is
-// otherwise invalid. This is *NOT* a validation of any contained JSON, and some
-// records contain data after the first value, which is always invalid since it
-// was not preceded by a RS.
+// record, plus true if it can be decoded or false if the record is invalid
+// (due to truncation or some other error).
+//
+// The flag being true does *NOT* constitute a validation of any contained
+// JSON, and some records contain data after the first value, which is always
+// invalid since it was not preceded by a RS.
 //
 // See section 2.4: Top-Level Values: numbers, true, false, and null.
 // https://tools.ietf.org/html/rfc7464#section-2.4

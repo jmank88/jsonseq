@@ -50,20 +50,15 @@ func WriteRecord(w io.Writer, json []byte) error {
 	return err
 }
 
-// A RecordWriter delimits the start of written records with a record separator.
+// A RecordWriter prefixes Write calls with a record separator.
 //
-// The standard library's json.Encoder calls Write just once for each value and
-// always with a trailing line feed, so it can be adapted very simply to emit a
-// JSON text sequence.
-//
-// 	encoder := json.NewEncoder(&jsonseq.RecordWriter{writer})
+// Callers must only call Write once for each value, and are responsible for
+// including trailing line feeds when necessary or desired.
 type RecordWriter struct {
 	io.Writer
 }
 
-// Write prefixes every written record with an ASCII record separator. The caller
-// is responsible for including a trailing line feed when necessary. Calls the
-// underlying Writer exactly once.
+// Write prefixes every written record with an ASCII record separator.
 func (w *RecordWriter) Write(record []byte) (int, error) {
 	_, err := w.Writer.Write([]byte{rs})
 	if err != nil {
@@ -73,19 +68,45 @@ func (w *RecordWriter) Write(record []byte) (int, error) {
 	return n + 1, err
 }
 
+// NewEncoder returns a standard library json.Encoder that writes a JSON text sequence to w.
+//
+// The Encoder calls Write just once for each value and always with a trailing line feed.
+func NewEncoder(w io.Writer) *json.Encoder {
+	return json.NewEncoder(&RecordWriter{w})
+}
+
+// Decode functions decode the JSON-encoded data and store the result in the value
+// pointed to by v, or return an error if invalid.
+// Note that the encoded data may have extra trailing data, which is perfectly
+// valid. This disqualifies parsers which assume a single value (e.g. json.Unmarshal).
+type Decode func(b []byte, v interface{}) error
+
 // A Decoder reads and decodes JSON text sequence records from an input stream.
 type Decoder struct {
-	s *bufio.Scanner
+	s  *bufio.Scanner
+	fn Decode
 }
 
-// NewDecoder creates a Decoder.
+// NewDecoder creates a new Decoder backed by the standard library's encoding/json
+// Decoder. Any extra trailing data is discarded.
 func NewDecoder(r io.Reader) *Decoder {
+	return NewDecoderFn(r, func(b []byte, v interface{}) error {
+		// Decode the first value, and discard any remaining data.
+		return json.NewDecoder(bytes.NewReader(b)).Decode(v)
+	})
+}
+
+// NewDecoderFn creates a new Decoder backed by a custom Decode function.
+func NewDecoderFn(r io.Reader, fn Decode) *Decoder {
 	s := bufio.NewScanner(r)
 	s.Split(ScanRecord)
-	return &Decoder{s: s}
+	return &Decoder{
+		s:  s,
+		fn: fn,
+	}
 }
 
-// Decode scans the next record, or returns an error. Extra trailing data is discarded.
+// Decode scans the next record, or returns an error.
 // The Decoder remains valid until io.EOF is returned.
 func (d *Decoder) Decode(v interface{}) error {
 	if !d.s.Scan() {
@@ -100,8 +121,7 @@ func (d *Decoder) Decode(v interface{}) error {
 	if !ok {
 		return fmt.Errorf("invalid record: %q", string(b))
 	}
-	// Decode the first value, and discard any remaining data.
-	return json.NewDecoder(bytes.NewReader(b)).Decode(v)
+	return d.fn(b, v)
 }
 
 // RecordValue returns the *value* bytes from a JSON text sequence record and a flag

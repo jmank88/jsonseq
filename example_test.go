@@ -1,7 +1,6 @@
 package jsonseq_test
 
 import (
-	"encoding/json"
 	"fmt"
 	"io"
 	"os"
@@ -22,8 +21,8 @@ func ExampleWriteRecord() {
 	//
 }
 
-func ExampleRecordWriter() {
-	encoder := json.NewEncoder(&jsonseq.RecordWriter{os.Stdout})
+func ExampleNewEncoder() {
+	encoder := jsonseq.NewEncoder(os.Stdout)
 	_ = encoder.Encode("Test")
 	_ = encoder.Encode(123.456)
 	_ = encoder.Encode(struct{ Id int }{Id: 1})

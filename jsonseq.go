@@ -14,6 +14,8 @@ import (
 // See: https://tools.ietf.org/html/rfc7464#section-4
 const ContentType = `application/json-seq`
 
+const digitSet = "1234567980"
+
 const (
 	rs = 0x1E
 	lf = 0x0A
@@ -23,12 +25,14 @@ const (
 )
 
 // whitespace characters defined in https://tools.ietf.org/html/rfc7159#section-2.
-var wsSet = string([]byte{sp, tb, lf, cr})
+var wsSet = []byte{sp, tb, lf, cr}
 
-const digitSet = "1234567980"
+func wsByte(b byte) bool {
+	return bytes.IndexByte(wsSet, b) >= 0
+}
 
-func ws(b byte) bool {
-	return b == sp || b == tb || b == lf || b == cr
+func wsRune(r rune) bool {
+	return bytes.ContainsRune(wsSet, r)
 }
 
 // WriteRecord writes a JSON text sequence record with beginning
@@ -100,11 +104,9 @@ func (d *Decoder) Decode(v interface{}) error {
 	return json.NewDecoder(bytes.NewReader(b)).Decode(v)
 }
 
-// RecordValue returns a slice containing the value from a JSON text sequence
-// record and true if it can be decoded or false if the record was truncated or is
-// otherwise invalid. This is *NOT* a validation of any contained JSON, and some
-// records contain data after the first value, which is always invalid since it
-// was not preceded by a RS.
+// RecordValue returns the *value* bytes from a JSON text sequence record and a flag
+// indicating if the *record* is valid. This is *NOT* a validation of any contained JSON,
+// which could itself be invalid or contain extra trailing values.
 //
 // See section 2.4: Top-Level Values: numbers, true, false, and null.
 // https://tools.ietf.org/html/rfc7464#section-2.4
@@ -116,28 +118,28 @@ func RecordValue(b []byte) ([]byte, bool) {
 		return b, false
 	}
 	// Drop rs and leading whitespace.
-	b = bytes.TrimLeft(b[1:], wsSet)
+	b = bytes.TrimLeftFunc(b[1:], wsRune)
 
 	// A number, true, false, or null value could be truncated if not
 	// followed by whitespace.
 	switch b[0] {
 	case 'n':
 		if bytes.HasPrefix(b, []byte("null")) {
-			if ws(b[4]) {
+			if wsByte(b[4]) {
 				return b, true
 			}
 			return b, false
 		}
 	case 't':
 		if bytes.HasPrefix(b, []byte("true")) {
-			if ws(b[4]) {
+			if wsByte(b[4]) {
 				return b, true
 			}
 			return b, false
 		}
 	case 'f':
 		if bytes.HasPrefix(b, []byte("false")) {
-			if ws(b[5]) {
+			if wsByte(b[5]) {
 				return b, true
 			}
 			return b, false
@@ -145,14 +147,14 @@ func RecordValue(b []byte) ([]byte, bool) {
 	case '-':
 		if '0' <= b[1] && b[1] <= '9' {
 			t := bytes.TrimLeft(b, digitSet)
-			if len(t) > 0 && ws(t[0]) {
+			if len(t) > 0 && wsByte(t[0]) {
 				return b, true
 			}
 			return b, false
 		}
 	case '0', '1', '2', '3', '4', '5', '6', '7', '8', '9':
 		t := bytes.TrimLeft(b, digitSet)
-		if len(t) > 0 && ws(t[0]) {
+		if len(t) > 0 && wsByte(t[0]) {
 			return b, true
 		}
 		return b, false

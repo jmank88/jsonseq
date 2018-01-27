@@ -152,41 +152,44 @@ func RecordValue(b []byte) ([]byte, bool) {
 	}
 	// Drop rs and leading whitespace.
 	b = bytes.TrimLeftFunc(b[1:], wsRune)
-
+	if len(b) == 0 {
+		// Empty record.
+		return b, true
+	}
 	// A number, true, false, or null value could be truncated if not
 	// followed by whitespace.
 	switch b[0] {
 	case 'n':
 		if bytes.HasPrefix(b, []byte("null")) {
-			if wsByte(b[4]) {
+			if len(b) > 4 && wsByte(b[4]) {
 				return b, true
 			}
 			return b, false
 		}
 	case 't':
 		if bytes.HasPrefix(b, []byte("true")) {
-			if wsByte(b[4]) {
+			if len(b) > 4 && wsByte(b[4]) {
 				return b, true
 			}
 			return b, false
 		}
 	case 'f':
 		if bytes.HasPrefix(b, []byte("false")) {
-			if wsByte(b[5]) {
+			if len(b) > 5 && wsByte(b[5]) {
 				return b, true
 			}
 			return b, false
 		}
 	case '-':
-		if '0' <= b[1] && b[1] <= '9' {
-			t := bytes.TrimLeft(b, digitSet)
+		if len(b) > 1 && '0' <= b[1] && b[1] <= '9' {
+			t := bytes.TrimLeft(b[2:], digitSet)
 			if len(t) > 0 && wsByte(t[0]) {
 				return b, true
 			}
 			return b, false
 		}
 	case '0', '1', '2', '3', '4', '5', '6', '7', '8', '9':
-		t := bytes.TrimLeft(b, digitSet)
+		t := bytes.TrimLeft(b[1:], digitSet)
 		if len(t) > 0 && wsByte(t[0]) {
 			return b, true
 		}

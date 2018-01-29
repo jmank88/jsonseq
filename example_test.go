@@ -1,18 +1,16 @@
-package jsonseq_test
+package jsonseq
 
 import (
 	"fmt"
 	"io"
 	"os"
 	"strings"
-
-	"github.com/jmank88/jsonseq"
 )
 
 func ExampleWriteRecord() {
-	_ = jsonseq.WriteRecord(os.Stdout, []byte(`{"id":1}`))
-	_ = jsonseq.WriteRecord(os.Stdout, []byte(`{"id":2}`))
-	_ = jsonseq.WriteRecord(os.Stdout, []byte(`{"id":3}`))
+	_ = WriteRecord(os.Stdout, []byte(`{"id":1}`))
+	_ = WriteRecord(os.Stdout, []byte(`{"id":2}`))
+	_ = WriteRecord(os.Stdout, []byte(`{"id":3}`))
 
 	// Output:
 	// {"id":1}
@@ -22,7 +20,7 @@ func ExampleWriteRecord() {
 }
 
 func ExampleNewEncoder() {
-	encoder := jsonseq.NewEncoder(os.Stdout)
+	encoder := NewEncoder(os.Stdout)
 	_ = encoder.Encode("Test")
 	_ = encoder.Encode(123.456)
 	_ = encoder.Encode(struct{ Id int }{Id: 1})
@@ -35,7 +33,7 @@ func ExampleNewEncoder() {
 }
 
 func ExampleDecoder_Decode() {
-	d := jsonseq.NewDecoder(strings.NewReader(`{"id":1} 12341234 true discarded junk`))
+	d := NewDecoder(strings.NewReader(`{"id":1} 12341234 true discarded junk`))
 	for {
 		var i interface{}
 		if err := d.Decode(&i); err != nil {

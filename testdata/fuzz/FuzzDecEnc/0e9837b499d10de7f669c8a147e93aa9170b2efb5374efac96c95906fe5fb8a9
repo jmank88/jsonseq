@@ -1,0 +1,5 @@
+go test fuzz v1
+bool(false)
+string("oN(p\xe9\xc6+y")
+string("0")
+string("0")
